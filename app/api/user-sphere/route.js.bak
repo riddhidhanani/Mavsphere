@@ -1,0 +1,145 @@
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]/route";
+import prisma from "@/lib/prisma";
+
+export async function GET(request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    const userId = session.user.id;
+
+    const connections = await prisma.userConnection.findMany({
+      where: {
+        userId: userId,
+        status: "accepted",
+      },
+      select: {
+        connected: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profile: {
+              select: {
+                bio: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const incomingRequests = await prisma.userConnection.findMany({
+      where: {
+        connectedId: userId,
+        status: "pending",
+      },
+      select: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profile: {
+              select: {
+                bio: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const sentRequests = await prisma.userConnection.findMany({
+      where: {
+        userId: userId,
+        status: "pending",
+      },
+      select: {
+        connected: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profile: {
+              select: {
+                bio: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return new Response(
+      JSON.stringify({
+        connections,
+        incomingRequests,
+        sentRequests,
+      }),
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error in GET /api/user-sphere:", error);
+    return new Response("Internal Server Error", { status: 500 });
+  }
+}
+
+export async function POST(request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    const { userId, connectionId, status } = await request.json();
+
+    // Add debug logging
+    console.log("POST /api/user-sphere received:", {
+      userId,
+      connectionId,
+      status,
+      sessionUserId: session.user.id,
+    });
+
+    // Validate inputs
+    if (
+      !userId ||
+      !connectionId ||
+      !["accepted", "rejected"].includes(status)
+    ) {
+      console.log("Invalid input detected:", { userId, connectionId, status });
+      return new Response("Invalid input", { status: 400 });
+    }
+
+    // Log before update
+    console.log("Attempting to update connection with:", {
+      userId,
+      connectedId: connectionId,
+      newStatus: status,
+    });
+
+    const updatedConnection = await prisma.userConnection.update({
+      where: {
+        userId_connectedId: {
+          userId, // Ensure this matches the `userId` from the request
+          connectedId: connectionId, // Ensure this matches the `connectionId` from the request
+        },
+      },
+      data: {
+        status, // Update the status (e.g., "accepted" or "rejected")
+      },
+    });
+
+    return new Response(JSON.stringify(updatedConnection), { status: 200 });
+  } catch (error) {
+    console.error("Error in POST /api/user-sphere:", error);
+    return new Response("Internal Server Error", { status: 500 });
+  }
+}

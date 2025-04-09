@@ -1,0 +1,397 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  firstName     String         @map("first_name")
+  lastName      String         @map("last_name")
+  username      String         @unique
+  isMentor      Boolean        @default(false) @map("is_mentor")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  profile       UserProfile?
+  education     Education[]
+  experience    Experience[]
+  skills        UserSkills?
+  settings      UserSettings?
+  events        Event[]
+  posts         ForumPost[]
+  forums        Forum[]      @relation("UserSubscriptions") // Many-to-many relationship
+  eventsParticipating EventParticipant[]
+  mentorRelations MentorshipRelationship[] @relation("mentor")
+  menteeRelations MentorshipRelationship[] @relation("mentee")
+  sentConnections     UserConnection[] @relation("UserConnectionRequester")
+  receivedConnections UserConnection[] @relation("UserConnectionReceiver")
+  isFeatured      Boolean       @default(false) @map("is_featured")
+  mentorshipApplications MentorshipApplication[]
+  mentorProfile    MentorProfile?
+  messages        Message[]
+  conversations   ConversationParticipant[]
+  groupParticipations GroupParticipant[]
+  sentGroupMessages   GroupMessage[]    @relation("GroupMessageSender")
+
+  @@map("users")
+  @@index([firstName])
+  @@index([lastName])
+  @@index([username])
+}
+
+model UserProfile {
+  id          String    @id @default(uuid())
+  userId      String    @unique @map("user_id")
+  bio         String?   @db.Text
+  currentInstitution String? @map("current_institution")
+  location    String?
+  linkedinUrl String?   @map("linkedin_url")
+  githubUrl   String?   @map("github_url")
+  kaggleUrl   String?   @map("kaggle_url")
+  avatarUrl   String?   @map("avatar_url")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Education {
+  id          Int      @id @default(autoincrement())
+  userId      String   @map("user_id")
+  degreeTitle String   @map("degree_title")
+  institution String
+  startYear   Int      @map("start_year")
+  endYear     Int?     @map("end_year")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("education")
+}
+
+model Experience {
+  id              Int       @id @default(autoincrement())
+  userId          String    @map("user_id")
+  positionTitle   String    @map("position_title")
+  organization    String
+  startDate       DateTime  @map("start_date")
+  endDate         DateTime? @map("end_date")
+  responsibilities String?  @db.Text
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("experience")
+}
+
+model UserSkills {
+  id              Int     @id @default(autoincrement())
+  userId          String  @unique @map("user_id")
+  publications    String? @db.Text
+  researchAreas   String? @map("research_areas") @db.Text
+  technicalSkills String? @map("technical_skills") @db.Text
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_skills")
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  title       String
+  date        DateTime
+  duration    Int?
+  location    String
+  type        String
+  website     String?
+  description String?   @db.Text
+  notes       String?   @db.Text
+  organizer   String?
+  hasCallForPapers Boolean @default(false) @map("has_call_for_papers")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id])
+  participants EventParticipant[]
+
+  @@map("events")
+}
+
+model EventParticipant {
+  eventId     String   @map("event_id")
+  userId      String   @map("user_id")
+  status      ParticipantStatus @default(registered)
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@map("event_participants")
+}
+
+model Forum {
+  id          Int         @id @default(autoincrement())
+  title       String
+  description String?     @db.Text
+  createdAt   DateTime    @default(now()) @map("created_at")
+  posts       ForumPost[]
+  users       User[]      @relation("UserSubscriptions") // Many-to-many relationship
+
+  @@map("forums")
+}
+
+model ForumPost {
+  id          Int      @id @default(autoincrement())
+  forumId     Int      @map("forum_id")
+  userId      String   @map("user_id")
+  title       String
+  content     String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  forum       Forum    @relation(fields: [forumId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("forum_posts")
+}
+
+model Roadmap {
+  id            Int      @id @default(autoincrement())
+  title         String
+  type          String
+  description   String   @db.Text
+  category      String
+  link          String
+  downloadLink  String   @map("download_link")
+
+  @@map("roadmaps")
+}
+
+model MentorshipRelationship {
+  id          Int       @id @default(autoincrement())
+  mentorId    String    @map("mentor_id")
+  menteeId    String    @map("mentee_id")
+  status      MentorshipStatus @default(pending)
+  startDate   DateTime? @map("start_date")
+  endDate     DateTime? @map("end_date")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  mentor      User      @relation("mentor", fields: [mentorId], references: [id], onDelete: Cascade)
+  mentee      User      @relation("mentee", fields: [menteeId], references: [id], onDelete: Cascade)
+
+  @@map("mentorship_relationships")
+}
+
+model UserSettings {
+  userEmail            String   @id @map("user_email")
+  emailNotifications   Boolean  @default(false) @map("email_notifications")
+  pushNotifications    Boolean  @default(false) @map("push_notifications")
+  messageNotifications Boolean  @default(false) @map("message_notifications")
+  profileVisibility    Boolean  @default(false) @map("profile_visibility")
+  showEmail           Boolean  @default(false) @map("show_email")
+  showLinkedin        Boolean  @default(false) @map("show_linkedin")
+  showGithub          Boolean  @default(false) @map("show_github")
+  showKaggle          Boolean  @default(false) @map("show_kaggle")
+  user                User     @relation(fields: [userEmail], references: [email], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model UserConnection {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  connectedId String    @map("connected_id")
+  status      ConnectionStatus @default(pending)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  user        User      @relation("UserConnectionRequester", fields: [userId], references: [id])
+  connected   User      @relation("UserConnectionReceiver", fields: [connectedId], references: [id])
+
+  @@unique([userId, connectedId])
+  @@map("user_connections")
+}
+
+model MentorshipApplication {
+  id                Int      @id @default(autoincrement())
+  fullName          String
+  email             String
+  university        String
+  program           String
+  areasForGuidance  String
+  topicOfGuidance   String?
+  meetingFrequency  String
+  startDate         DateTime
+  endDate           DateTime
+  personalStatement String   @db.Text
+  userId            String
+  status            ApplicationStatus @default(pending)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+
+  @@map("mentorship_applications")
+}
+
+model MentorProfile {
+  id                Int      @id @default(autoincrement())
+  userId           String   @unique @map("user_id")
+  academicGuidance Boolean  @default(false) @map("academic_guidance")
+  careerAdvice     Boolean  @default(false) @map("career_advice")
+  researchSupport  Boolean  @default(false) @map("research_support")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mentor_profiles")
+}
+
+model Conversation {
+  id           String    @id @default(uuid())
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  messages     Message[]
+  participants ConversationParticipant[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  userId         String       @map("user_id")
+  conversationId String       @map("conversation_id")
+  joinedAt       DateTime     @default(now()) @map("joined_at")
+  lastRead       DateTime     @default(now()) @map("last_read")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conversationId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  content        String       @db.Text
+  senderId       String       @map("sender_id")
+  conversationId String       @map("conversation_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model GroupChat {
+  id          String    @id @default(uuid())
+  name        String
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  messages    GroupMessage[]
+  participants GroupParticipant[]
+
+  @@map("group_chats")
+}
+
+model GroupParticipant {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  groupId     String    @map("group_chat_id")
+  joinedAt    DateTime  @default(now()) @map("joined_at")
+  lastRead    DateTime  @default(now()) @map("last_read")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group       GroupChat @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+  @@map("group_participants")
+}
+
+model GroupMessage {
+  id          String    @id @default(uuid())
+  content     String    @db.Text
+  senderId    String    @map("sender_id")
+  groupId     String    @map("group_chat_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  sender      User      @relation("GroupMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  group       GroupChat @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@map("group_messages")
+}
+
+model Contact {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("contacts")
+}
+
+model JobListing {
+  id              String   @id @default(cuid())
+  title           String 
+  company         String
+  website         String
+  location        String
+  type            String
+  salaryRange     String
+  datePosted      DateTime
+  experienceLevel String
+  industry        String
+  skillsRequired  String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("job_listings")
+}
+
+model InternshipListing {
+  id              String   @id @default(cuid())
+  title           String
+  company         String
+  website         String
+  location        String
+  type            String
+  salaryRange     String
+  datePosted      DateTime
+  experienceLevel String
+  industry        String
+  skillsRequired  String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("internship_listings")
+}
+
+enum EventType {
+  meeting
+  deadline
+  seminar
+  conference
+  workshop
+  workout
+}
+
+enum ParticipantStatus {
+  registered
+  attended
+  cancelled
+}
+
+enum MentorshipStatus {
+  pending
+  active
+  completed
+  cancelled
+}
+
+enum ConnectionStatus {
+  pending
+  accepted
+  rejected
+  blocked
+}
+
+enum ApplicationStatus {
+  pending
+  approved
+  rejected
+}
